@@ -16,7 +16,7 @@ def __get_key(fname: str) -> str:
     #   filename1
     _, prefix, ext = get_file_details(fname)
     if ext == ".json":
-        key = os.path.splitext(prefix)[0]
+        key = os.path.splitext(os.path.splitext(prefix)[0])[0]
     elif "-edited" in prefix:
         key = prefix.split("-edited")[0]
     else:
@@ -82,6 +82,7 @@ def fix_incorrect_extension(img_path) -> Optional[str]:
 def group_files_by_name(files: List[str]) -> Dict:
     file_pairs = {}
 
+    files = sorted(files)
     for fname in files:
         dirname, prefix, ext = get_file_details(fname)
         key = __get_key(fname)

@@ -2,13 +2,14 @@ import os, json
 from datetime import datetime
 
 import filedate
-from progressbar import progressbar
+import progressbar
 from exif import Image as ImageExif
 
 from src import file_utils
 
 FIX_FILE_EXTENSIONS = None
 CONVERT_HEIC_TO_JPG = None
+REMOVE_MP4_FOR_LIVE_PHOTO = None
 
 
 def __apply_exif(img_fname: str, dt: datetime):
@@ -43,6 +44,8 @@ def __apply_os_metadata(img_fname: str, dt: datetime):
 
 
 def apply_metadata(img_path: str, json_path: str):
+    if os.path.basename(json_path).startswith('._'):
+        return
     with open(json_path) as json_f:
         md = json.load(json_f)
 
@@ -57,7 +60,8 @@ def apply_metadata(img_path: str, json_path: str):
 
 
 def apply_image_fixes(file_pairs):
-    for dirname in progressbar(file_pairs, redirect_stdout=True):
+    bar = progressbar.ProgressBar()
+    for dirname in bar(file_pairs):
         print("Applying file fixes for directory:", dirname)
         for key in file_pairs[dirname]:
             pair = file_pairs[dirname][key]
@@ -86,21 +90,30 @@ def process_files_in_dir(path: str) -> int:
     files = file_utils.get_file_paths(path)
     file_pairs = file_utils.group_files_by_name(files)
 
-    if FIX_FILE_EXTENSIONS or CONVERT_HEIC_TO_JPG:
-        apply_image_fixes(file_pairs)
+    # if FIX_FILE_EXTENSIONS or CONVERT_HEIC_TO_JPG:
+    #     apply_image_fixes(file_pairs)
 
     imgs_modified = 0
     print("Applying metadata...")
-    for dirname in progressbar(file_pairs, redirect_stdout=True):
+    bar = progressbar.ProgressBar()
+    for dirname in bar(file_pairs):
         for key in file_pairs[dirname]:
             pair = file_pairs[dirname][key]
-            if len(pair) < 2:
+            if len(pair) < 2 or next(iter(pair['images'])).startswith('._'):
                 continue
             for img in pair["images"]:
                 apply_metadata(f"{dirname}{'/' if dirname else ''}{img}",
                                f"{dirname}{'/' if dirname else ''}{pair['json']}")
                 imgs_modified += 1
             os.remove(f"{dirname}/{pair['json']}")
+            if REMOVE_MP4_FOR_LIVE_PHOTO:
+                mp4_file = next((file for file in pair['images'] if file.endswith('.MP4')), None)
+                if mp4_file is not None and len(pair['images']) > 1:
+                    os.remove(f"{dirname}/{mp4_file}")
+                else:
+                    mp4_file = next((file for file in pair['images'] if file.endswith('.mp4')), None)
+                    if mp4_file is not None and len(pair['images']) > 1:
+                        os.remove(f"{dirname}/{mp4_file}")
     return imgs_modified
 
 
